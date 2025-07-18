@@ -3,9 +3,9 @@ name = "odamcpserver"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 dependencies = [
-    "mcp[cli]>=1.10.1"
+    "mcp[cli]>=1.9.0",
 ]
 
 [project.scripts]
