@@ -22,3 +22,7 @@ To configure the MCP server, add the following configuration to your MCP config 
 ## Usage
 
 Once configured, you can interact with the MCP server using the appropriate client libraries.
+
+## Set up
+
+Please add your .env file to the root directory of the project with open AI API key.
