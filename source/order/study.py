@@ -192,5 +192,16 @@ def delete_product_data(store_id: str):
         return f"Error deleting existing files from vector store: {str(e)}"
     
 
+@mcp.prompt("learn-products")
+def learn_products_prompt():
+    """
+    Let learn product data with api token is {api_token} and company id is {company_id}. 
+    Let start with page = 1, after that page = page + 6 until no product to learn, it will stop.
+    """
+    return """Let learn product data with api token is {api_token} and company id is {company_id}. 
+Let start with page = 1, after that page = page + 6 until no product to learn, it will stop."""
+
+
+
 if __name__ == "__main__":
     mcp.run()
