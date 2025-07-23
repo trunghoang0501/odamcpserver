@@ -73,19 +73,20 @@ def get_or_create_vector_store(store_id: str):
 
 
 @mcp.tool("learn-product-data")
-def learn_product_data(api_token: str, store_id: str, is_delete: bool = False, page: int = 1) -> str:
+def learn_product_data(api_token: str, supplier_company_id: str, buy_company_id: str, is_delete: bool = False, page: int = 1) -> str:
     """
     Fetches product data from a specified API URL using POST method
     and saves it to product_link_id.json file
     
     Args:
         api_token: The API token for authentication
-        store_id: The ID of the store to fetch products from
+        supplier_company_id: The ID of the supplier company to fetch products from
+        buy_company_id: The ID of the buy company to fetch products from
         is_delete: Whether to delete existing files in the vector store
         page: The page number to fetch products from
     """
     try:
-        vector_store = get_or_create_vector_store(store_id)
+        vector_store = get_or_create_vector_store(supplier_company_id + '_' + buy_company_id)
         # Delete all existing files in the vector store
         try:
             files = client.vector_stores.files.list(vector_store_id=vector_store.id)
@@ -105,9 +106,9 @@ def learn_product_data(api_token: str, store_id: str, is_delete: bool = False, p
         
         while True:
             # Add pagination parameters to the API URL
-            if not api_token or not store_id:
-                return "Error: API token or store ID is missing"
-            api_url = f"https://dev-api.oda.vn/web/v1/guest/automation/product-study/{api_token}/{store_id}?page={page}&limit={limit}"
+            if not api_token or not supplier_company_id or not buy_company_id:
+                return "Error: API token or supplier company ID or buy company ID is missing"
+            api_url = f"https://dev-api.oda.vn/web/v1/guest/automation/product-study/{api_token}/{supplier_company_id}/{buy_company_id}?page={page}&limit={limit}"
             response = requests.post(api_url)
             response.raise_for_status()  # Raise exception for HTTP errors
             
@@ -180,10 +181,10 @@ def learn_product_data(api_token: str, store_id: str, is_delete: bool = False, p
         return f"Unexpected error: {str(e)}"
 
 @mcp.tool("delete-product-data")
-def delete_product_data(store_id: str):
+def delete_product_data(supplier_company_id: str, buy_company_id: str):
     """Delete all existing files in the vector store"""
     try:
-        vector_store = get_or_create_vector_store(store_id)
+        vector_store = get_or_create_vector_store(supplier_company_id + '_' + buy_company_id)
         files = client.vector_stores.files.list(vector_store_id=vector_store.id)
         for file in files:
             client.vector_stores.files.delete(vector_store_id=vector_store.id, file_id=file.id)
@@ -192,14 +193,14 @@ def delete_product_data(store_id: str):
         return f"Error deleting existing files from vector store: {str(e)}"
     
 
-@mcp.prompt("learn-products")
-def learn_products_prompt():
-    """
-    Let learn product data with api token is {api_token} and company id is {company_id}. 
-    Let start with page = 1, after that page = page + 6 until no product to learn, it will stop.
-    """
-    return """Let learn product data with api token is {api_token} and company id is {company_id}. 
-Let start with page = 1, after that page = page + 6 until no product to learn, it will stop."""
+# @mcp.prompt("learn-products")
+# def learn_products_prompt(api_token: str, supplier_company_id: str, buy_company_id: str):
+#     """
+#     Let learn product data with api token is {api_token} and supplier company id is {supplier_company_id} and buy company id is {buy_company_id}. 
+#     Let start with page = 1, after that page = page + 6 until no product to learn, it will stop.
+#     """
+#     return """Let learn product data with api token is {api_token} and supplier company id is {supplier_company_id} and buy company id is {buy_company_id}. 
+# Let start with page = 1, after that page = page + 6 until no product to learn, it will stop."""
 
 
 

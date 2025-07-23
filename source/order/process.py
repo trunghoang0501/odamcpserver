@@ -1,6 +1,7 @@
 from mcp.server.fastmcp import FastMCP
 from openai import OpenAI
 import tempfile
+import requests
 from dotenv import load_dotenv
 import os
 
@@ -30,9 +31,9 @@ def get_or_create_vector_store(store_id: str):
 
 
 @mcp.tool()
-def seach_product_id(product_name: str, store_id: str):
+def seach_product_id(product_name: str, supplier_company_id: str, buy_company_id: str):
     """Search memories in the vector store and return relevant chunks."""
-    vector_store = get_or_create_vector_store(store_id)
+    vector_store = get_or_create_vector_store(supplier_company_id + '_' + buy_company_id)
     
     # The OpenAI API search method doesn't support filtering by file_ids directly
     # We'll use the standard search method which searches across all files in the vector store
@@ -78,9 +79,9 @@ def process_order_product(product_ids: list[str], product_names: list[str], quan
     import json
     
     # Create product info object
-    product_info = []
+    order_info = []
     for product_id, product_name, quantity, note in zip(product_ids, product_names, quantities, notes):
-        product_info.append({
+        order_info.append({
             "product_name": product_name,
             "product_id": product_id,
             "quantity": quantity,
@@ -88,124 +89,47 @@ def process_order_product(product_ids: list[str], product_names: list[str], quan
         })
     
     # Return as JSON string
-    return json.dumps(product_info)
+    return json.dumps(order_info)
+
+@mcp.tool()
+def create_oda_order(api_token: str, supplier_company_id: str, buy_company_id: str, order_info: list):
+    """
+    Creates a draft order in ODA.
+
+    Args:
+        api_token: The API token for authentication.
+        supplier_company_id: The ID of the supplier company.
+        buy_company_id: The ID of the buy company.
+        order_info: A list of dictionaries representing the order information.
+
+    Returns:
+        The response from the ODA API.
+    """
+    import json
+
+    api_url = f"https://dev-api.oda.vn/web/v1/guest/automation/make-draft-order/{api_token}/{supplier_company_id}/{buy_company_id}"
+    
+    try:
+        # No need to parse JSON, order_info is already a list
+        payload = {"order": order_info}
+        response = requests.post(api_url, json=payload)
+        response.raise_for_status()  # Raise an exception for bad status codes
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        return {"error": f"API request failed: {e}"}
+    except Exception as e:
+        return {"error": f"Unexpected error: {str(e)}"}
     
 
-# @mcp.tool()
-# def process_order(conversation: str, store_id: str, seach_product_id_result):
-#     """Format content_texts into a list of order product objects with product information.
-    
-#     Args:
-#         conversation: The conversation to process
-#         store_id: The ID of the store to fetch products from
-#         seach_product_id_result: The result of the search_product_id tool (can be string or dict)
-        
-#     Returns:
-#         JSON formatted list of order product objects with product_name, product_id, quantity, and note
+# @mcp.prompt("order")
+# def order(api_token: str, supplier_company_id: str, buy_company_id: str, conversation: str):
 #     """
-    
-#     # Format content_texts into list of order product objects
-#     import json
-#     import re
-    
-#     # Parse the input based on its type
-#     order_products = []
-    
-#     # Handle dictionary input (direct product data from vector store)
-#     if isinstance(seach_product_id_result, dict):
-#         for product_id, product_data in seach_product_id_result.items():
-#             try:
-#                 # Extract product information from the dictionary
-#                 product_info = {
-#                     "product_name": product_data.get("1st_name", ""),
-#                     "product_id": product_id,
-#                     "quantity": 1,  # Default quantity
-#                     "note": ""  # Default empty note
-#                 }
-                
-#                 # Extract quantity from conversation if possible
-#                 quantity_match = re.search(r'\b(\d+)\s+' + re.escape(product_info["product_name"]), conversation, re.IGNORECASE)
-#                 if quantity_match:
-#                     product_info["quantity"] = int(quantity_match.group(1))
-                
-#                 # Extract note from conversation if possible
-#                 note_match = re.search(r'note[\s:]*([^\n]+)\s+' + re.escape(product_info["product_name"]), conversation, re.IGNORECASE)
-#                 if note_match:
-#                     product_info["note"] = note_match.group(1).strip()
-                
-#                 order_products.append(product_info)
-#             except Exception as e:
-#                 # Skip invalid entries
-#                 continue
-    
-#     # Handle list of strings input
-#     elif isinstance(seach_product_id_result, list):
-#         for text in seach_product_id_result:
-#             try:
-#                 # Parse the text to extract product information
-#                 product_name = re.search(r'product[\s_-]?name[\s:]*([^\n,]+)', text, re.IGNORECASE)
-#                 product_id = re.search(r'product[\s_-]?id[\s:]*([^\n,]+)', text, re.IGNORECASE)
-#                 quantity = re.search(r'quantity[\s:]*([0-9]+)', text, re.IGNORECASE)
-#                 note = re.search(r'note[\s:]*([^\n]+)', text, re.IGNORECASE)
-                
-#                 product_info = {
-#                     "product_name": product_name.group(1).strip() if product_name else "",
-#                     "product_id": product_id.group(1).strip() if product_id else "",
-#                     "quantity": int(quantity.group(1)) if quantity else 1,
-#                     "note": note.group(1).strip() if note else ""
-#                 }
-#                 order_products.append(product_info)
-#             except Exception as e:
-#                 # Skip invalid entries
-#                 continue
-    
-#     # Handle string input (try to parse as JSON first)
-#     elif isinstance(seach_product_id_result, str):
-#         try:
-#             # Try to parse as JSON
-#             json_data = json.loads(seach_product_id_result)
-#             if isinstance(json_data, dict):
-#                 # Process as dictionary
-#                 for product_id, product_data in json_data.items():
-#                     try:
-#                         product_info = {
-#                             "product_name": product_data.get("1st_name", ""),
-#                             "product_id": product_id,
-#                             "quantity": 1,
-#                             "note": ""
-#                         }
-#                         order_products.append(product_info)
-#                     except Exception:
-#                         # Skip this item and continue with the next one
-#                         pass
-#             elif isinstance(json_data, list):
-#                 # Already in the right format
-#                 order_products = json_data
-#         except json.JSONDecodeError:
-#             # Not valid JSON, try to parse as text
-#             try:
-#                 product_name = re.search(r'product[\s_-]?name[\s:]*([^\n,]+)', seach_product_id_result, re.IGNORECASE)
-#                 product_id = re.search(r'product[\s_-]?id[\s:]*([^\n,]+)', seach_product_id_result, re.IGNORECASE)
-#                 quantity = re.search(r'quantity[\s:]*([0-9]+)', seach_product_id_result, re.IGNORECASE)
-#                 note = re.search(r'note[\s:]*([^\n]+)', seach_product_id_result, re.IGNORECASE)
-                
-#                 if product_name or product_id:
-#                     product_info = {
-#                         "product_name": product_name.group(1).strip() if product_name else "",
-#                         "product_id": product_id.group(1).strip() if product_id else "",
-#                         "quantity": int(quantity.group(1)) if quantity else 1,
-#                         "note": note.group(1).strip() if note else ""
-#                     }
-#                     order_products.append(product_info)
-#             except Exception:
-#                 # Unable to parse
-#                 pass
-#         except Exception:
-#             # General exception handling for the string processing
-#             pass
-    
-#     # Return as JSON
-#     return json.dumps(order_products)
+#     Let search multiple product id first and process order product for this conversation for api_token is {api_token} and supplier company id is {supplier_company_id} and buy company id is {buy_company_id}. 
+#     The conversation is: {conversation}
+#     """
+#     return """Let search multiple product id first and process order product for this conversation for api_token is {api_token} and supplier company id is {supplier_company_id} and buy company id is {buy_company_id}. 
+#     The conversation is: {conversation}
+# """
 
 
 if __name__ == "__main__":

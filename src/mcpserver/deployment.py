@@ -151,9 +151,9 @@ def delete_product_data(store_id: str):
         return f"Error deleting existing files from vector store: {str(e)}"
     
 @mcp.tool()
-def seach_product_id(product_name: str, store_id: str):
+def seach_product_id(product_name: str, supplier_company_id: str, buy_company_id: str):
     """Search memories in the vector store and return relevant chunks."""
-    vector_store = get_or_create_vector_store(store_id)
+    vector_store = get_or_create_vector_store(supplier_company_id + '_' + buy_company_id)
     
     # The OpenAI API search method doesn't support filtering by file_ids directly
     # We'll use the standard search method which searches across all files in the vector store
@@ -199,9 +199,9 @@ def process_order_product(product_ids: list[str], product_names: list[str], quan
     import json
     
     # Create product info object
-    product_info = []
+    order_info = []
     for product_id, product_name, quantity, note in zip(product_ids, product_names, quantities, notes):
-        product_info.append({
+        order_info.append({
             "product_name": product_name,
             "product_id": product_id,
             "quantity": quantity,
@@ -209,6 +209,36 @@ def process_order_product(product_ids: list[str], product_names: list[str], quan
         })
     
     # Return as JSON string
-    return json.dumps(product_info)
+    return json.dumps(order_info)
+
+@mcp.tool()
+def create_oda_order(api_token: str, supplier_company_id: str, buy_company_id: str, order_info: list):
+    """
+    Creates a draft order in ODA.
+
+    Args:
+        api_token: The API token for authentication.
+        supplier_company_id: The ID of the supplier company.
+        buy_company_id: The ID of the buy company.
+        order_info: A list of dictionaries representing the order information.
+
+    Returns:
+        The response from the ODA API.
+    """
+    import json
+
+    api_url = f"https://dev-api.oda.vn/web/v1/guest/automation/make-draft-order/{api_token}/{supplier_company_id}/{buy_company_id}"
+    
+    try:
+        # No need to parse JSON, order_info is already a list
+        payload = {"order": order_info}
+        response = requests.post(api_url, json=payload)
+        response.raise_for_status()  # Raise an exception for bad status codes
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        return {"error": f"API request failed: {e}"}
+    except Exception as e:
+        return {"error": f"Unexpected error: {str(e)}"}
+        
 if __name__ == "__main__":
     mcp.run()
