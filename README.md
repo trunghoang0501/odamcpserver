@@ -13,7 +13,10 @@ To configure the MCP server, add the following configuration to your MCP config 
         "--from",
         "git+https://github.com/trunghoang0501/odamcpserver.git",
         "mcp-server"
-      ]
+      ],
+      "env": {
+        "OPENAI_API_KEY": "your-openai-api-key-here"
+      }
     }
   }
 }
